@@ -1,0 +1,35 @@
+image: docker:latest
+
+stages:
+  - upload
+
+upload:
+  only:
+    refs:
+      - master
+  stage: upload
+  image: google/cloud-sdk:276.0.0
+  services:
+    - docker:dind
+  before_script:
+    - echo "Creating AWS creds"
+    - mkdir /root/.aws/
+    - touch /root/.aws/credentials
+    - echo "[default]" >> /root/.aws/credentials
+    - echo "aws_access_key_id=$AWS_ACCESS" >> /root/.aws/credentials
+    - echo "aws_secret_access_key=$AWS_SECRET" >> /root/.aws/credentials
+    - chmod 777 /root/.aws/credentials
+    - echo "Install AWS SDK"
+    - pip install awscli # Install the SDK
+    - echo "$GCP_SERVICE_KEY" > gcloud-service-key.json # Google Cloud service accounts
+    - echo "Setup GCP creds"
+    - gcloud auth activate-service-account --key-file gcloud-service-key.json
+    - gcloud config set project $GCP_PROJECT_ID
+    - YD=`date --date="$DAYS" +%Y%m%d`
+    - touch $YD.zip
+  script:
+    - gsutil cp $YD.zip gs://$bucket
+    - aws s3 cp $YD.zip s3://$bucket/$YD.zip
+    - rm -rf $YD.zip
+    - rm -rf /root/.aws/credentials
+    - rm -rf gcloud-service-key.json
